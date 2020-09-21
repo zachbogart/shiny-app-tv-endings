@@ -1,0 +1,84 @@
+---
+output: html_document
+css: style.css
+runtime: shiny
+---
+
+<!-- Great help from Brett Ory's post:  https://www.brettory.com/2018/02/embedding-a-shiny-app-in-blogdown/ -->
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(shiny)
+library(dplyr)
+library(ggplot2)
+
+theme_set(theme_light())
+```
+
+```{r include=FALSE}
+tv <- read.csv("data/tv-endings.csv")
+list_of_shows <- tv %>% 
+  select(show) %>% 
+  distinct() %>% 
+  arrange(show) %>% 
+  as.list()
+
+list_of_shows <- list_of_shows$show
+```
+
+```{r echo=FALSE}
+ui <- fluidPage(
+  selectInput("show", label = "Show Endings",
+              choices = list_of_shows, selected = "Breaking Bad"),
+  mainPanel(
+    
+    # Output: Tabset w/ plot, summary, and table ----
+    tabsetPanel(type = "tabs",
+                tabPanel("Plot", plotOutput("linechart", width = "90%", height = "250px")),
+                tabPanel("Table", tableOutput("table"))
+    )
+  )
+)
+server <- function(input, output) {
+  
+  output$linechart <- renderPlot({
+    color_full <- "CornflowerBlue"
+    plot_caption <- "zachbogart.com\nSource: IMDb"
+    
+    show_name <- input$show
+    
+    finales_full <- tv %>% 
+      group_by(show) %>% 
+      filter(last_episode_number ==  max(last_episode_number)) %>% 
+      filter(show == show_name)
+    
+    tv %>% 
+      filter(show == show_name) %>% 
+      ggplot(aes(last_episode_number, rating)) +
+        geom_text(data = finales_full, aes(label = rating, y = rating*.95, x = last_episode_number), 
+                  hjust = 1, vjust = 0.5,
+                  size = 5, 
+                  alpha = 0.4, color = color_full) +
+        geom_smooth(se = FALSE, color = color_full) +
+        geom_line(color = color_full, alpha = 0.2, size = 0.5, linetype = "solid") +
+        geom_point(alpha = 0.4, color = color_full, size = 1) +
+        theme(axis.text.x=element_blank(),
+            axis.ticks.x=element_blank()) +
+        labs(title = input$show,
+             subtitle = "Final Episode Ratings",
+             caption = plot_caption,
+             x = "Final Episodes",
+             y = "Rating")
+  })
+  
+  output$table <- renderTable({
+    tv %>% 
+      filter(show == input$show)
+  })
+  
+  
+}
+
+
+shinyApp(ui = ui, server = server)
+```
